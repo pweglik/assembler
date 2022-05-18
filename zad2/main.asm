@@ -25,52 +25,42 @@ program_start:
     mov ax, 0a000h
     mov es, ax
 
+    ; we need to push in reverse order
+    mov ax, 10d ; color
+    push ax 
+    mov ax, 199d ; y1
+    push ax
+    mov ax, 319d ; x1
+    push ax 
+    mov ax, 50d ; y0
+    push ax
+    mov ax, 100d ; x0
+    push ax 
+
+    ; args on stack: x0, y0, x1, y1, color
+    call draw_line
+
+    ; we need to push in reverse order
+    mov ax, 13d ; color
+    push ax 
+    mov ax, 100d ; y1
+    push ax
+    mov ax, 50d ; x1
+    push ax 
+    mov ax, 0d ; y0
+    push ax
+    mov ax, 0d ; x0
+    push ax 
+
+    ; args on stack: x0, y0, x1, y1, color
+    call draw_line
 
 
 
-
-
-    ; exmample colors
-    ; mov cx, 200d
-    ; _for1:
-    ;     push cx ; save cx
-    ;     mov bx, cx ; save horizontal iterator
-    ;     mov cx, 255d
-    ;     _for2:
-    ;         ; save bx
-    ;         push bx
-
-    ;         ; construct arguments
-    ;         mov ax, 255d ; color
-    ;         sub ax, cx
-    ;         push ax
-
-    ;         mov ax, 200d; y
-    ;         sub ax, bx
-    ;         push ax 
-
-    ;         mov ax, 255d ; x
-    ;         sub ax, cx
-    ;         push ax
-
-    ;         ; call with stack from top: x, y, color
-    ;         call draw_point
-
-    ;         pop bx ; get bx
-    ;         loop _for2
-
-    ;     pop cx ; get cx
-    ;     loop _for1
-
-
-
-
-
+program_end:
     ; wait for any key before end
     xor ax, ax
     int 16h
-
-program_end:
     ; go back to text mode
     mov ah, 0
     ; use text mode
@@ -82,23 +72,31 @@ program_end:
     int 21h
 
 ; pseudo code for procedure from wikipedia
-; draw_line(x0, y0, x1, y1)
+; draw_line(x0, y0, x1, y1, color)
 ;     delta_x = x1 - x0
 ;     delta_y = y1 - y0
-;     D = 2*delta_y - delta_x
 ;     y = y0
+;     D = 2*delta_y - delta_x
+;     
 
 ;     for x from x0 to x1
 ;         plot(x,y)
 ;         if D > 0
 ;             y = y + 1
-;             D = D - 2*delta_x
+;             if slope < 1
+;                 D = D - 2*delta_x
+;             else
+;                 D = D - 2*delta_x
 ;         end if
-;         D = D + 2*delta_y
+;             if slope < 1
+;                 D = D + 2*delta_y
+;             else
+;                 D = D - 2*delta_x
+;        
 
-; args on stack: x0, y0, x1, y1
-; qw use registers as such:
-; cx <- x, al <- y, ah <- delta_y, dx <- D, stack <- delta_x
+; args on stack: x0, y0, x1, y1, color
+; we use registers as such:
+; cx <- x, bl <- y, bh <- delta_y, dx <- D, stack <- delta_x
 ; we use bx for other temporary operations 
 draw_line:
     push bp
@@ -107,37 +105,128 @@ draw_line:
     mov ax, word ptr ss:[bp + 8] ; x1
     mov bx, word ptr ss:[bp + 4] ; x0
     ; delta_x = x1 - x0
-    sub, ax, bx
+    sub ax, bx
     push ax ; save delta_x to stack
 
     mov ax, word ptr ss:[bp + 10] ; y1
     mov bx, word ptr ss:[bp + 6] ; y0
+    ; delta_y = y1 - y0
+    sub ax, bx
+    mov bh, al ; save delta_y to bh
+    ; y = y0
+    mov ax, word ptr ss:[bp + 6]
+    mov bl,  al
 
+    ; D = 2*delta_y - delta_x
+    xor dx, dx
+    mov dl, bh
+    clc;
+    rcl dx, 1; multily by two 
+
+
+    pop ax ; load delta_x to ax
+    push ax ; save it
+
+    sub dx, ax ; dx = D = 2*delta_y - delta_x
+
+    mov cx, word ptr ss:[bp + 4]
+    _draw_line_for1:
+        ; plot(x,y)
+        ; save bx and dx
+        push bx
+        push dx
+        ; construct arguments
+        ; color
+        mov ax, word ptr ss:[bp + 12] 
+        push ax
+
+        ; y
+        xor ax, ax
+        mov al, bl
+        push ax 
+
+        ; x
+        mov ax, cx 
+        push ax
+        
+        call draw_point
+        ; get bx and dx
+        pop dx
+        pop bx
+
+        ; if D > 0
+        cmp dx, 0
+        jle _draw_line_if1
+            ; y = y + 1
+            inc bl
+            ; D = D - 2*delta_x
+            ; get delta_x
+            pop ax
+            push ax
+
+            clc;
+            rcl ax, 1; multily by two 
+
+
+            sub dx, ax
+
+
+        _draw_line_if1:
+
+        ; D = D + 2*delta_y
+        ; save bx
+        push bx
+
+        xor ax, ax
+        mov al, bh ; load delta_y to ax
+
+
+        xor bx, bx
+        mov bl, 2d 
+        mul bl ; 2 * delta_y
+
+        add dx, ax
+
+        ; retrive bx
+        pop bx
+
+        ; end loop
+        inc cx
+        cmp cx, word ptr ss:[bp + 8]
+        jle _draw_line_for1; loop if x <= x1
+
+
+    mov sp, bp ; delete local variables 
+    pop bp ; retrive old base pointer
+    ret 10
 
 
 
 
 ;args on stack - 3 words: x, y, color 
+; it destroys ax, bx, and dx!
 draw_point:
     push bp
     mov bp, sp
 
 
-    ; calculate 320 * y + x
+    ; calculate 320 * (200-y) + x, because we treat screen as I quater of cartesian plane
+    mov bx, word ptr ss:[bp + 6]
+    mov ax, 199d
+    sub ax, bx
     mov bx, 320d
-    mov ax, word ptr ss:[bp + 6]
+
     mul bx ; (dx ax) = ax * 320 (bx), but we ignore dx as we never overflow into it
     mov bx, word ptr ss:[bp + 4]
-    add bx, ax ; bx = 320 * y + x
+    add bx, ax ; bx = 320 * (200-y) + x
 
-    mov ax, word ptr ss:[bp + 8] ; set colot
+    mov ax, word ptr ss:[bp + 8] ; set color
 
     mov byte ptr es:[bx], al ; light up a pixel
 
     mov sp, bp ; delete local variables - not needed here
     pop bp ; retrive old base pointer
     ret 6
-
 
 ; function for debug puposes 
 print_regs:
