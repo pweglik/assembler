@@ -75,29 +75,39 @@ program_end:
 ; draw_line(x0, y0, x1, y1, color)
 ;     delta_x = x1 - x0
 ;     delta_y = y1 - y0
-;     y = y0
-;     D = 2*delta_y - delta_x
-;     
-
-;     for x from x0 to x1
-;         plot(x,y)
-;         if D > 0
-;             y = y + 1
-;             if slope < 1
-;                 D = D - 2*delta_x
+;     if slope < 1
+;         D = 2*delta_y - delta_x
+;         y = y0
+;         for x from x0 to x1
+;             plot(x,y)
+;             if D > 0
+;                 y = y + 1
+;             
+;                  D = D - 2*delta_x
 ;             else
 ;                 D = D - 2*delta_x
-;         end if
-;             if slope < 1
+;             end if
 ;                 D = D + 2*delta_y
 ;             else
 ;                 D = D - 2*delta_x
-;        
+;     else
+;         D = 2*delta_x - delta_y
+;         x = x0
+;         for y from y0 to y1
+;             plot(x,y)
+;             if D > 0
+;                 x = x + 1
+;                 D = D - 2*delta_x
+;             end if
+;                 D = D + 2*delta_y
+;             else
+;                 D = D - 2*delta_x      
 
 ; args on stack: x0, y0, x1, y1, color
 ; we use registers as such:
 ; cx <- x, bl <- y, bh <- delta_y, dx <- D, stack <- delta_x
 ; we use bx for other temporary operations 
+; TODO add if and another loop for case that slope > 1
 draw_line:
     push bp
     mov bp, sp
@@ -113,89 +123,160 @@ draw_line:
     ; delta_y = y1 - y0
     sub ax, bx
     mov bh, al ; save delta_y to bh
-    ; y = y0
-    mov ax, word ptr ss:[bp + 6]
-    mov bl,  al
 
-    ; D = 2*delta_y - delta_x
-    xor dx, dx
-    mov dl, bh
-    clc;
-    rcl dx, 1; multily by two 
+    pop ax
+    push ax ; get detla_x temporarly to ax for compare
+
+    cmp al, bh
+    jl _draw_line_if1 ; if delta_x >= delta_y
+
+        ; y = y0
+        mov ax, word ptr ss:[bp + 6]
+        mov bl,  al
+
+        ; D = 2*delta_y - delta_x
+        xor dx, dx
+        mov dl, bh
+        clc;
+        rcl dx, 1; multily by two 
 
 
-    pop ax ; load delta_x to ax
-    push ax ; save it
+        pop ax ; load delta_x to ax
+        push ax ; save it
 
-    sub dx, ax ; dx = D = 2*delta_y - delta_x
+        sub dx, ax ; dx = D = 2*delta_y - delta_x
 
-    mov cx, word ptr ss:[bp + 4]
-    _draw_line_for1:
-        ; plot(x,y)
-        ; save bx and dx
-        push bx
-        push dx
-        ; construct arguments
-        ; color
-        mov ax, word ptr ss:[bp + 12] 
-        push ax
-
-        ; y
-        xor ax, ax
-        mov al, bl
-        push ax 
-
-        ; x
-        mov ax, cx 
-        push ax
-        
-        call draw_point
-        ; get bx and dx
-        pop dx
-        pop bx
-
-        ; if D > 0
-        cmp dx, 0
-        jle _draw_line_if1
-            ; y = y + 1
-            inc bl
-            ; D = D - 2*delta_x
-            ; get delta_x
-            pop ax
+        mov cx, word ptr ss:[bp + 4] ; cx = x0
+        _draw_line_for1:
+            ; plot(x,y)
+            ; save bx and dx
+            push bx
+            push dx
+            ; construct arguments
+            ; color
+            mov ax, word ptr ss:[bp + 12] 
             push ax
+
+            ; y
+            xor ax, ax
+            mov al, bl
+            push ax 
+
+            ; x
+            mov ax, cx 
+            push ax
+            
+            call draw_point
+            ; get bx and dx
+            pop dx
+            pop bx
+
+            ; if D > 0
+            cmp dx, 0
+            jle _draw_line_if2
+                ; y = y + 1
+                inc bl
+                ; D = D - 2*delta_x
+                ; get delta_x
+                pop ax
+                push ax
+
+                clc;
+                rcl ax, 1; multily by two 
+
+
+                sub dx, ax
+
+
+            _draw_line_if2:
+
+            ; D = D + 2*delta_y
+            xor ax, ax
+            mov al, bh ; load delta_y to ax
 
             clc;
             rcl ax, 1; multily by two 
 
+            add dx, ax
 
-            sub dx, ax
+            ; end loop
+            inc cx
+            cmp cx, word ptr ss:[bp + 8]
+            jle _draw_line_for1; loop if x <= x1
+
+        jmp _draw_line_end
+
+    _draw_line_if1: ; if delta_x < delta_y (or just else)
+        ; x = x0
+        mov ax, word ptr ss:[bp + 4]
+        mov bl,  al
+        ; D = 2*delta_x - delta_y
+        pop dx 
+        push dx ; get delta_x to dx
+        clc;
+        rcl dx, 1; multily by two 
+
+        sub dl, bh ; dx = D = 2*delta_x - delta_y
+
+        mov cx, word ptr ss:[bp + 6]
+        _draw_line_for2:
+            ; plot(x,y)
+            ; save bx and dx
+            push bx
+            push dx
+            ; construct arguments
+            ; color
+            mov ax, word ptr ss:[bp + 12] 
+            push ax
+
+            ; y
+            mov ax, cx 
+            push ax
+
+            ; x
+            xor ax, ax
+            mov al, bl
+            push ax
+            
+            call draw_point
+            ; get bx and dx
+            pop dx
+            pop bx
+
+            ; if D > 0
+            cmp dx, 0
+            jle _draw_line_if3
+                ; x = x + 1
+                inc bl
+
+                ; D = D - 2*delta_y
+                ; get delta_y
+                xor ax, ax
+                mov al, bh
+
+                clc;
+                rcl ax, 1; multily by two 
+
+                sub dx, ax
 
 
-        _draw_line_if1:
+            _draw_line_if3:
 
-        ; D = D + 2*delta_y
-        ; save bx
-        push bx
+            ; D = D + 2*delta_x
+            pop ax
+            push ax ; get delta_x
 
-        xor ax, ax
-        mov al, bh ; load delta_y to ax
+            clc;
+            rcl ax, 1; multily by two 
 
+            add dx, ax
 
-        xor bx, bx
-        mov bl, 2d 
-        mul bl ; 2 * delta_y
+            ; end loop
+            inc cx
+            cmp cx, word ptr ss:[bp + 10]
+            jle _draw_line_for2; loop if y <= y1
 
-        add dx, ax
-
-        ; retrive bx
-        pop bx
-
-        ; end loop
-        inc cx
-        cmp cx, word ptr ss:[bp + 8]
-        jle _draw_line_for1; loop if x <= x1
-
-
+    _draw_line_end:
     mov sp, bp ; delete local variables 
     pop bp ; retrive old base pointer
     ret 10
