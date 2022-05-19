@@ -217,7 +217,7 @@ get_input:
     push dx 
     call print1
 
-; ask for b
+    ; ask for b
     push ax ; save ax
 
     mov ax, offset text_input_b

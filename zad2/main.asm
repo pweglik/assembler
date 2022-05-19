@@ -25,66 +25,33 @@ program_start:
     mov ax, 0a000h
     mov es, ax
 
-    ; we need to push in reverse order
-    mov ax, 10d ; color
-    push ax 
-    mov ax, 80d ; y1
+    mov ax, 4d
     push ax
-    mov ax, 160d ; x1
-    push ax 
-    mov ax, 0d ; y0
-    push ax
-    mov ax, 0d ; x0
-    push ax 
 
-    ; args on stack: x0, y0, x1, y1, color
-    call draw_line
-
+    push bp
+    mov bp, sp
     ; we need to push in reverse order
     mov ax, 13d ; color
     push ax 
-    mov ax, 100d ; y1
-    push ax
-    mov ax, 50d ; x1
-    push ax 
-    mov ax, 0d ; y0
-    push ax
-    mov ax, 0d ; x0
-    push ax 
-
-    ; args on stack: x0, y0, x1, y1, color
-    call draw_line
-
-    ; we need to push in reverse order
-    mov ax, 14d ; color
-    push ax 
-    mov ax, 100d ; y1
+    ; mov ax, 100d ; y2
+    ; push ax
+    ; mov ax, 100d ; x2
+    ; push ax 
+    mov ax, 60d ; y1
     push ax
     mov ax, 150d ; x1
     push ax 
-    mov ax, 0d ; y0
+    mov ax, 50d ; y0
     push ax
-    mov ax, 150d ; x0
+    mov ax, 50d ; x0
     push ax 
 
     ; args on stack: x0, y0, x1, y1, color
-    call draw_line
+    call draw_figure
 
-    ; we need to push in reverse order
-    mov ax, 14d ; color
-    push ax 
-    mov ax, 60d ; y1
-    push ax
-    mov ax, 200d ; x1
-    push ax 
-    mov ax, 60d ; y0
-    push ax
-    mov ax, 60d ; x0
-    push ax 
-
-    ; args on stack: x0, y0, x1, y1, color
-    call draw_line
-
+    pop bp
+    pop ax
+    sub sp, ax
 
 
 program_end:
@@ -100,6 +67,84 @@ program_end:
 
     mov ax, 4c00h ; end progrema
     int 21h
+
+
+; args on stack: color, any number of poitns in form (word x, word y)
+; first point should be pushed last
+draw_figure:
+    mov cx, bp
+    sub cx, sp ; before setting new base pointer, count number of arguments
+    sub cx, 2d 
+    ror cx, 1d; number of args is (bp - sp - 2) /2 (we need to account for ip already on stack)
+    sub cx, 1d ; subtract color argument
+
+    mov ax, cx
+    mov bl, 2d
+    div bl
+    mov cx, ax ; divide cx by 2 to make it number of points
+
+    push bp
+    mov bp, sp ; save base pointer
+
+    ; get color
+    mov bx, word ptr ss:[bp + 4]
+    push bx ; save color on stack
+
+    add ax, 2d ; move to 1st point
+
+    mov dx, word ptr ss:[bp + 6] ; x_0 = x_(n-1)
+
+    sub cx, 1d ; account for already taking 1st point
+
+    _draw_figure_for1:
+        pop ax
+        push ax ; get color and save it again
+        push ax ; put color on argument stack for draw_line
+
+        ; logic do get nth point
+        mov di, cx
+        rol di, 1 
+        rol di, 1 ; multiply by 4 to accoutn for 2 words per point
+        add di, 6d ; account for ip, bp, and color
+
+        mov ax, word ptr ss:[bp + di] ; x_n
+
+        call print_regs
+        cmp ax, dx
+        jae _draw_figure_if1 ; if x_n < x_(n-1)
+            ; we need to push in reverse order
+            mov ax, word ptr ss:[bp + di + 2] ; x_n ; y1
+            push ax
+            mov ax, word ptr ss:[bp + di] ; x_n ; x1
+            push ax 
+            mov ax, word ptr ss:[bp + di + 4] ; x_n ; y0
+            push ax
+            mov ax, word ptr ss:[bp + di + 6] ; x_n ; x0
+            push ax
+
+            jmp _draw_figure_draw_line
+        _draw_figure_if1: ; else (  x_n >= x_(n-1) )
+            ; we need to push in reverse order
+            mov ax, word ptr ss:[bp + di + 2] ; x_n ; y1
+            push ax
+            mov ax, word ptr ss:[bp + di] ; x_n ; x1
+            push ax 
+            mov ax, word ptr ss:[bp + di - 2] ; x_n ; y0
+            push ax
+            mov ax, word ptr ss:[bp + di - 4] ; x_n ; x0
+            push ax 
+
+        _draw_figure_draw_line:
+        ; args on stack: x0, y0, x1, y1, color
+        call draw_line
+
+        loop _draw_figure_for1
+
+
+    _draw_figure_end:
+    mov sp, bp ; delete local variables 
+    pop bp ; retrive old base pointer
+    ret
 
 ; pseudo code for procedure from wikipedia
 ; draw_line(x0, y0, x1, y1, color)
@@ -154,6 +199,23 @@ draw_line:
     sub ax, bx
     mov bh, al ; save delta_y to bh
 
+    cmp bh, 0d
+    jge _no_negative_delta_y
+        neg bh
+        push bx
+        mov bx, word ptr ss:[bp + 10] ; y1
+        neg bl
+        mov word ptr ss:[bp + 10], bx
+        mov bx, word ptr ss:[bp + 6] ; y0
+        neg bl
+        mov word ptr ss:[bp + 6], bx
+        pop bx
+
+    _no_negative_delta_y:
+
+
+    
+
     pop ax
     push ax ; get detla_x temporarly to ax for compare
 
@@ -167,8 +229,7 @@ draw_line:
         ; D = 2*delta_y - delta_x
         xor dx, dx
         mov dl, bh
-        clc;
-        rcl dx, 1; multily by two 
+        rol dx, 1; multily by two 
 
 
         pop ax ; load delta_x to ax
@@ -205,14 +266,13 @@ draw_line:
             cmp dx, 0
             jle _draw_line_if2 ; if D > 0
                 ; y = y + 1
-                inc bl
+                add bl, 1d
                 ; D = D - 2*delta_x
                 ; get delta_x
                 pop ax
                 push ax
 
-                clc;
-                rcl ax, 1; multily by two 
+                rol ax, 1; multily by two 
 
                 sub dx, ax
 
@@ -223,8 +283,7 @@ draw_line:
             mov ah, 0d
             mov al, bh ; load delta_y to ax
 
-            clc;
-            rcl ax, 1; multily by two 
+            rol ax, 1; multily by two 
 
             add dx, ax
 
@@ -242,8 +301,8 @@ draw_line:
         ; D = 2*delta_x - delta_y
         pop dx 
         push dx ; get delta_x to dx
-        clc;
-        rcl dx, 1; multily by two 
+
+        rol dx, 1; multily by two 
 
         sub dl, bh ; dx = D = 2*delta_x - delta_y
 
@@ -276,15 +335,13 @@ draw_line:
             cmp dx, 0
             jle _draw_line_if3
                 ; x = x + 1
-                inc bl
+                add bl, 1d
 
                 ; D = D - 2*delta_y
                 ; get delta_y
                 xor ax, ax
                 mov al, bh
-
-                clc;
-                rcl ax, 1; multily by two 
+                rol ax, 1; multily by two 
 
                 sub dx, ax
 
@@ -295,8 +352,7 @@ draw_line:
             pop ax
             push ax ; get delta_x
 
-            clc;
-            rcl ax, 1; multily by two 
+            rol ax, 1; multily by two 
 
             add dx, ax
 
@@ -320,8 +376,18 @@ draw_point:
     mov bp, sp
 
 
-    ; calculate 320 * (200-y) + x, because we treat screen as I quater of cartesian plane
+    ; calculate 320 * (199-y) + x, because we treat screen as I quater of cartesian plane
     mov bx, word ptr ss:[bp + 6]
+    ; check if y ise negative if it is, flip it
+
+    cmp bl, 0d
+    jge _draw_point_if1
+        mov bx, word ptr ss:[bp + 6] 
+        neg bl
+        mov word ptr ss:[bp + 6], bx
+    _draw_point_if1:
+
+
     mov ax, 199d
     sub ax, bx
     mov bx, 320d
