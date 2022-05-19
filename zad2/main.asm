@@ -28,13 +28,13 @@ program_start:
     ; we need to push in reverse order
     mov ax, 10d ; color
     push ax 
-    mov ax, 199d ; y1
+    mov ax, 80d ; y1
     push ax
-    mov ax, 319d ; x1
+    mov ax, 160d ; x1
     push ax 
-    mov ax, 50d ; y0
+    mov ax, 0d ; y0
     push ax
-    mov ax, 100d ; x0
+    mov ax, 0d ; x0
     push ax 
 
     ; args on stack: x0, y0, x1, y1, color
@@ -50,6 +50,36 @@ program_start:
     mov ax, 0d ; y0
     push ax
     mov ax, 0d ; x0
+    push ax 
+
+    ; args on stack: x0, y0, x1, y1, color
+    call draw_line
+
+    ; we need to push in reverse order
+    mov ax, 14d ; color
+    push ax 
+    mov ax, 100d ; y1
+    push ax
+    mov ax, 150d ; x1
+    push ax 
+    mov ax, 0d ; y0
+    push ax
+    mov ax, 150d ; x0
+    push ax 
+
+    ; args on stack: x0, y0, x1, y1, color
+    call draw_line
+
+    ; we need to push in reverse order
+    mov ax, 14d ; color
+    push ax 
+    mov ax, 60d ; y1
+    push ax
+    mov ax, 200d ; x1
+    push ax 
+    mov ax, 60d ; y0
+    push ax
+    mov ax, 60d ; x0
     push ax 
 
     ; args on stack: x0, y0, x1, y1, color
@@ -107,7 +137,7 @@ program_end:
 ; we use registers as such:
 ; cx <- x, bl <- y, bh <- delta_y, dx <- D, stack <- delta_x
 ; we use bx for other temporary operations 
-; TODO add if and another loop for case that slope > 1
+; we exchange y with x in slope > 1 version
 draw_line:
     push bp
     mov bp, sp
@@ -128,7 +158,7 @@ draw_line:
     push ax ; get detla_x temporarly to ax for compare
 
     cmp al, bh
-    jl _draw_line_if1 ; if delta_x >= delta_y
+    jb _draw_line_if1 ; if delta_x >= delta_y
 
         ; y = y0
         mov ax, word ptr ss:[bp + 6]
@@ -171,9 +201,9 @@ draw_line:
             pop dx
             pop bx
 
-            ; if D > 0
+            
             cmp dx, 0
-            jle _draw_line_if2
+            jle _draw_line_if2 ; if D > 0
                 ; y = y + 1
                 inc bl
                 ; D = D - 2*delta_x
@@ -184,14 +214,13 @@ draw_line:
                 clc;
                 rcl ax, 1; multily by two 
 
-
                 sub dx, ax
 
 
             _draw_line_if2:
 
             ; D = D + 2*delta_y
-            xor ax, ax
+            mov ah, 0d
             mov al, bh ; load delta_y to ax
 
             clc;
