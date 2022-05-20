@@ -3,7 +3,8 @@ assume cs:code1
 data1 segment
     buff1 db 100 dup('$')
     text_newline db 10, 13, '$'
-
+    text_1 db "1$"
+    text_2 db "2$"
 data1 ends
 
 
@@ -25,18 +26,16 @@ program_start:
     mov ax, 0a000h
     mov es, ax
 
-    mov ax, 4d
-    push ax
-
-    push bp
-    mov bp, sp
+    ; triangle
     ; we need to push in reverse order
-    mov ax, 13d ; color
+    mov ax, 50d ; y3
+    push ax
+    mov ax, 50d ; x3
+    push ax
+    mov ax, 100d ; y2
+    push ax
+    mov ax, 100d ; x2
     push ax 
-    ; mov ax, 100d ; y2
-    ; push ax
-    ; mov ax, 100d ; x2
-    ; push ax 
     mov ax, 60d ; y1
     push ax
     mov ax, 150d ; x1
@@ -45,13 +44,135 @@ program_start:
     push ax
     mov ax, 50d ; x0
     push ax 
+    mov ax, 13d ; color
+    push ax 
+    mov ax, 4d ; number of points
+    push ax
 
-    ; args on stack: x0, y0, x1, y1, color
+    ; args on stack: color, x0, y0, x1, y1, 
     call draw_figure
 
-    pop bp
-    pop ax
+    mov ax, 4d
+    mov bx, 4d
+    mul bx ; 4 * num of points
+    add ax, 4 ; color and no of points
     sub sp, ax
+
+    ; upside dowm  triangle
+    ; we need to push in reverse order
+    mov ax, 50d ; y3
+    push ax
+    mov ax, 200d ; x3
+    push ax
+    mov ax, 80d ; y2
+    push ax
+    mov ax, 150d ; x2
+    push ax 
+    mov ax, 80d ; y1
+    push ax
+    mov ax, 250d ; x1
+    push ax 
+    mov ax, 50d ; y0
+    push ax
+    mov ax, 200d ; x0
+    push ax 
+    mov ax, 13d ; color
+    push ax 
+    mov ax, 4d ; number of points
+    push ax
+
+    ; args on stack: color, x0, y0, x1, y1, 
+    call draw_figure
+
+    mov ax, 4d
+    mov bx, 4d
+    mul bx ; 4 * num of points
+    add ax, 4 ; color and no of points
+    sub sp, ax
+
+    ; swuare
+    ; we need to push in reverse order
+    mov ax, 100d ; y4
+    push ax
+    mov ax, 200d ; x4
+    push ax
+    mov ax, 150d ; y3
+    push ax
+    mov ax, 200d ; x3
+    push ax
+    mov ax, 150d ; y2
+    push ax
+    mov ax, 250d ; x2
+    push ax 
+    mov ax, 100d ; y1
+    push ax
+    mov ax, 250d ; x1
+    push ax 
+    mov ax, 100d ; y0
+    push ax
+    mov ax, 200d ; x0
+    push ax 
+    mov ax, 10d ; color
+    push ax 
+    mov ax, 5d ; number of points
+    push ax
+
+    ; args on stack: color, x0, y0, x1, y1, 
+    call draw_figure
+
+    mov ax, 5d
+    mov bx, 4d
+    mul bx ; 4 * num of points
+    add ax, 6 ; color and no of points
+    sub sp, ax
+
+    ; weird shape
+
+    ; we need to push in reverse order
+    mov ax, 100d ; y6
+    push ax
+    mov ax, 100d ; x6
+    push ax
+    mov ax, 40d ; y5
+    push ax
+    mov ax, 60d ; x5
+    push ax
+    mov ax, 130d ; y4
+    push ax
+    mov ax, 60d ; x4
+    push ax
+    mov ax, 160d ; y3
+    push ax
+    mov ax, 80d ; x3
+    push ax
+    mov ax, 180d ; y2
+    push ax
+    mov ax, 130d ; x2
+    push ax 
+    mov ax, 120d ; y1
+    push ax
+    mov ax, 150d ; x1
+    push ax 
+    mov ax, 100d ; y0
+    push ax
+    mov ax, 100d ; x0
+    push ax 
+    mov ax, 12d ; color
+    push ax 
+    mov ax, 7d ; number of points
+    push ax
+
+    ; args on stack: color, x0, y0, x1, y1, 
+    call draw_figure
+
+    mov ax, 7d
+    mov bx, 4d
+    mul bx ; 4 * num of points
+    add ax, 4 ; color and no of points
+    sub sp, ax
+
+
+
 
 
 program_end:
@@ -72,54 +193,44 @@ program_end:
 ; args on stack: color, any number of poitns in form (word x, word y)
 ; first point should be pushed last
 draw_figure:
-    mov cx, bp
-    sub cx, sp ; before setting new base pointer, count number of arguments
-    sub cx, 2d 
-    ror cx, 1d; number of args is (bp - sp - 2) /2 (we need to account for ip already on stack)
-    sub cx, 1d ; subtract color argument
-
-    mov ax, cx
-    mov bl, 2d
-    div bl
-    mov cx, ax ; divide cx by 2 to make it number of points
-
     push bp
     mov bp, sp ; save base pointer
 
+    mov cx, word ptr ss:[bp + 4] ; set cx to number of points
+
     ; get color
-    mov bx, word ptr ss:[bp + 4]
-    push bx ; save color on stack
+    mov ax, word ptr ss:[bp + 6]
+    mov word ptr cs:[fig_color], ax
 
-    add ax, 2d ; move to 1st point
-
-    mov dx, word ptr ss:[bp + 6] ; x_0 = x_(n-1)
+    ; mov di, cx
+    ; rol di, 1 
+    ; rol di, 1 ; multiply by 4 to accoutn for 2 words per point
+    ; add di, 8d ; account for ip, bp, num of params and color
+    ; mov dx, word ptr ss:[bp + di - 4] ; x_0 = x_(n-1)
 
     sub cx, 1d ; account for already taking 1st point
 
     _draw_figure_for1:
-        pop ax
-        push ax ; get color and save it again
-        push ax ; put color on argument stack for draw_line
+        push cx
+        push word ptr cs:[fig_color] ; put color on argument stack for draw_line
 
         ; logic do get nth point
         mov di, cx
         rol di, 1 
         rol di, 1 ; multiply by 4 to accoutn for 2 words per point
-        add di, 6d ; account for ip, bp, and color
+        add di, 8d ; account for ip, bp, num of params and color
 
         mov ax, word ptr ss:[bp + di] ; x_n
-
-        call print_regs
         cmp ax, dx
-        jae _draw_figure_if1 ; if x_n < x_(n-1)
+        ja _draw_figure_if1 ; if x_n < x_(n-1)
             ; we need to push in reverse order
-            mov ax, word ptr ss:[bp + di + 2] ; x_n ; y1
+            mov ax, word ptr ss:[bp + di - 2] ; x_n ; y1
             push ax
-            mov ax, word ptr ss:[bp + di] ; x_n ; x1
+            mov ax, word ptr ss:[bp + di - 4] ; x_n ; x1
             push ax 
-            mov ax, word ptr ss:[bp + di + 4] ; x_n ; y0
+            mov ax, word ptr ss:[bp + di + 2] ; x_n ; y0
             push ax
-            mov ax, word ptr ss:[bp + di + 6] ; x_n ; x0
+            mov ax, word ptr ss:[bp + di] ; x_n ; x0
             push ax
 
             jmp _draw_figure_draw_line
@@ -138,6 +249,8 @@ draw_figure:
         ; args on stack: x0, y0, x1, y1, color
         call draw_line
 
+        pop cx
+        mov dx, word ptr ss:[bp + di - 8] ; get new dx
         loop _draw_figure_for1
 
 
@@ -145,6 +258,8 @@ draw_figure:
     mov sp, bp ; delete local variables 
     pop bp ; retrive old base pointer
     ret
+
+fig_color dw 0
 
 ; pseudo code for procedure from wikipedia
 ; draw_line(x0, y0, x1, y1, color)
@@ -180,8 +295,8 @@ draw_figure:
 
 ; args on stack: x0, y0, x1, y1, color
 ; we use registers as such:
-; cx <- x, bl <- y, bh <- delta_y, dx <- D, stack <- delta_x
-; we use bx for other temporary operations 
+; cx <- x, bx <- y, dx <- D
+; we use ax for other temporary operations 
 ; we exchange y with x in slope > 1 version
 draw_line:
     push bp
@@ -191,51 +306,61 @@ draw_line:
     mov bx, word ptr ss:[bp + 4] ; x0
     ; delta_x = x1 - x0
     sub ax, bx
-    push ax ; save delta_x to stack
+    mov word ptr cs:[delta_x], ax ; save delta_x to stack
 
     mov ax, word ptr ss:[bp + 10] ; y1
     mov bx, word ptr ss:[bp + 6] ; y0
     ; delta_y = y1 - y0
     sub ax, bx
-    mov bh, al ; save delta_y to bh
+    mov word ptr cs:[delta_y], ax ; save delta_y to bh
 
-    cmp bh, 0d
-    jge _no_negative_delta_y
-        neg bh
-        push bx
+    mov ax, word ptr ss:[bp + 4] ; x0
+    cmp ax, word ptr ss:[bp + 8]
+    jle _no_swap ; if x0 > x1
+        neg word ptr cs:[delta_x]
+        ; exchange x's
+        mov bx, word ptr ss:[bp + 8] ; x1
+        xchg ax, bx
+
+        mov word ptr ss:[bp + 4], ax 
+        mov word ptr ss:[bp + 8], bx
+
+        ; exchange y's
+        mov ax, word ptr ss:[bp + 6] ; y0
+        mov bx, word ptr ss:[bp + 10]; y1
+        xchg ax, bx
+
+        mov word ptr ss:[bp + 6], ax 
+        mov word ptr ss:[bp + 10], bx
+
+    _no_swap:
+
+    cmp word ptr cs:[delta_y], 0d
+    jge _no_negative_delta_y ; if delta_y < 0
+        neg word ptr cs:[delta_y]
+
         mov bx, word ptr ss:[bp + 10] ; y1
-        neg bl
+        neg bx
         mov word ptr ss:[bp + 10], bx
         mov bx, word ptr ss:[bp + 6] ; y0
-        neg bl
+        neg bx
         mov word ptr ss:[bp + 6], bx
-        pop bx
 
     _no_negative_delta_y:
 
-
-    
-
-    pop ax
-    push ax ; get detla_x temporarly to ax for compare
-
-    cmp al, bh
+    mov ax, word ptr cs:[delta_x]
+    cmp ax, word ptr cs:[delta_y]
     jb _draw_line_if1 ; if delta_x >= delta_y
 
         ; y = y0
-        mov ax, word ptr ss:[bp + 6]
-        mov bl,  al
+        mov bx, word ptr ss:[bp + 6]
 
         ; D = 2*delta_y - delta_x
         xor dx, dx
-        mov dl, bh
+        mov dx, word ptr cs:[delta_y]
         rol dx, 1; multily by two 
 
-
-        pop ax ; load delta_x to ax
-        push ax ; save it
-
-        sub dx, ax ; dx = D = 2*delta_y - delta_x
+        sub dx, word ptr cs:[delta_x] ; dx = D = 2*delta_y - delta_x
 
         mov cx, word ptr ss:[bp + 4] ; cx = x0
         _draw_line_for1:
@@ -249,13 +374,10 @@ draw_line:
             push ax
 
             ; y
-            xor ax, ax
-            mov al, bl
-            push ax 
+            push bx 
 
             ; x
-            mov ax, cx 
-            push ax
+            push cx
             
             call draw_point
             ; get bx and dx
@@ -266,12 +388,10 @@ draw_line:
             cmp dx, 0
             jle _draw_line_if2 ; if D > 0
                 ; y = y + 1
-                add bl, 1d
+                add bx, 1d
                 ; D = D - 2*delta_x
                 ; get delta_x
-                pop ax
-                push ax
-
+                mov ax, word ptr cs:[delta_x]
                 rol ax, 1; multily by two 
 
                 sub dx, ax
@@ -280,8 +400,8 @@ draw_line:
             _draw_line_if2:
 
             ; D = D + 2*delta_y
-            mov ah, 0d
-            mov al, bh ; load delta_y to ax
+            xor ax, ax
+            mov ax, word ptr cs:[delta_y] ; load delta_y to ax
 
             rol ax, 1; multily by two 
 
@@ -296,15 +416,12 @@ draw_line:
 
     _draw_line_if1: ; if delta_x < delta_y (or just else)
         ; x = x0
-        mov ax, word ptr ss:[bp + 4]
-        mov bl,  al
+        mov bx, word ptr ss:[bp + 4]
         ; D = 2*delta_x - delta_y
-        pop dx 
-        push dx ; get delta_x to dx
-
+        mov dx, word ptr cs:[delta_x]
         rol dx, 1; multily by two 
 
-        sub dl, bh ; dx = D = 2*delta_x - delta_y
+        sub dx, word ptr cs:[delta_y] ; dx = D = 2*delta_x - delta_y
 
         mov cx, word ptr ss:[bp + 6]
         _draw_line_for2:
@@ -318,13 +435,10 @@ draw_line:
             push ax
 
             ; y
-            mov ax, cx 
-            push ax
+            push cx
 
             ; x
-            xor ax, ax
-            mov al, bl
-            push ax
+            push bx
             
             call draw_point
             ; get bx and dx
@@ -335,12 +449,11 @@ draw_line:
             cmp dx, 0
             jle _draw_line_if3
                 ; x = x + 1
-                add bl, 1d
+                add bx, 1d
 
                 ; D = D - 2*delta_y
                 ; get delta_y
-                xor ax, ax
-                mov al, bh
+                mov ax, word ptr cs:[delta_y]
                 rol ax, 1; multily by two 
 
                 sub dx, ax
@@ -349,8 +462,8 @@ draw_line:
             _draw_line_if3:
 
             ; D = D + 2*delta_x
-            pop ax
-            push ax ; get delta_x
+            ; get delta_x
+            mov ax, word ptr cs:[delta_x]
 
             rol ax, 1; multily by two 
 
@@ -366,7 +479,8 @@ draw_line:
     pop bp ; retrive old base pointer
     ret 10
 
-
+delta_y dw 0
+delta_x dw 0 
 
 
 ;args on stack - 3 words: x, y, color 
@@ -377,15 +491,14 @@ draw_point:
 
 
     ; calculate 320 * (199-y) + x, because we treat screen as I quater of cartesian plane
-    mov bx, word ptr ss:[bp + 6]
     ; check if y ise negative if it is, flip it
 
-    cmp bl, 0d
+    cmp word ptr ss:[bp + 6], 0d
     jge _draw_point_if1
-        mov bx, word ptr ss:[bp + 6] 
-        neg bl
-        mov word ptr ss:[bp + 6], bx
+        neg word ptr ss:[bp + 6] 
     _draw_point_if1:
+
+    mov bx, word ptr ss:[bp + 6]
 
 
     mov ax, 199d
@@ -411,6 +524,7 @@ print_regs:
     push bx
     push cx
     push dx
+    push di
 
     push dx
     mov dx, seg buff1 
@@ -458,6 +572,7 @@ print_regs:
     pop dx
 
     ; load saved registers
+    pop di
     pop dx
     pop cx
     pop bx
@@ -543,7 +658,7 @@ code1 ends
 
 
 stack1 segment stack
-            dw 200 dup(?)
+            dw 400 dup(?)
 stack_top   dw ?
 stack1 ends
 
