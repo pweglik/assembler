@@ -265,6 +265,12 @@ fig_color dw 0
 ; draw_line(x0, y0, x1, y1, color)
 ;     delta_x = x1 - x0
 ;     delta_y = y1 - y0
+;     if x0 > x1
+;         swap x0, x1
+;     if delta_y < 0
+;        neg delta_y
+;        neg y0
+;        neg y1
 ;     if slope < 1
 ;         D = 2*delta_y - delta_x
 ;         y = y0
